@@ -1,0 +1,73 @@
+# --- Python bytecode and extensions ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Packaging and build artifacts ---
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+pip-wheel-metadata/
+*.egg-info/
+*.egg
+.installed.cfg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# --- Test, coverage and tool caches ---
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.pyre/
+.ruff_cache/
+.tox/
+.nox/
+
+# --- Editors and operating systems ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- mi6 local data and secrets (constitution, principle 5) ---
+# Agent data must never reach the repository, even if copied into it by mistake.
+.mi6/
+**/.mi6/
+missions.json
+missions.lock
+.missions.json.tmp-*
+*.key
+*.pem
+.env
+.env.*

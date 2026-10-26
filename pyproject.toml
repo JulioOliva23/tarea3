@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mi6-cli"
+version = "0.1.0"
+description = "Local, encrypted mission log for MI6 field agents."
+requires-python = ">=3.11"
+dependencies = [
+    "cryptography>=42",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Environment :: Console",
+]
+
+[project.scripts]
+mi6 = "mi6.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["mi6", "mi6.*"]
