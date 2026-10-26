@@ -122,7 +122,7 @@ class ValidateCodeNameTest(unittest.TestCase):
     def test_rejects_forbidden_characters(self) -> None:
         cases = [
             "../x", "/", "SKY/FALL", "A B", " SKYFALL", "SKYFALL ", "ÁGUILA",
-            "SКYFALL", "SKY\u200bFALL", "SKY\u200dFALL", "\x1b[2J", "SKYFALL\n",
+            "S\u041aYFALL", "SKY\u200bFALL", "SKY\u200dFALL", "\x1b[2J", "SKYFALL\n",
             "sky_fall", "sky.fall", "K", "ı", "straße", "ＳKYFALL", "   ",
         ]
         for raw in cases:

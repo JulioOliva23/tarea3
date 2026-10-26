@@ -157,6 +157,16 @@ class KeyCheckTest(CryptoTestCase):
                 with self.assertRaises(AuthenticationError):
                     crypto.verify_key(self.key, flip_bit(key_check, index))
 
+    def test_trailing_data_after_padding_is_rejected_on_every_python(self) -> None:
+        key_check = crypto.make_key_check(self.key)
+        self.assertTrue(key_check.endswith("="))
+        token = crypto.encrypt_report(self.key, REPORT)
+        for bad, check in ((key_check + "AAAA", crypto.verify_key), (token + "AAAA", crypto.decrypt_report),
+                           (key_check + "=", crypto.verify_key), (" " + token, crypto.decrypt_report)):
+            with self.subTest(suffix=bad[-6:]):
+                with self.assertRaises(AuthenticationError):
+                    check(self.key, bad)
+
     def test_malformed_verifiers_are_rejected(self) -> None:
         key_check = crypto.make_key_check(self.key)
         for bad in ("", "garbage", key_check[:-8], key_check + "AAAA", "ñ" * 100):

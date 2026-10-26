@@ -83,10 +83,25 @@ def decrypt_report(key: bytes, token: str) -> str:
 
 def _decrypt(key: bytes, token: str) -> bytes:
     fernet = Fernet(key)
+    if not _is_canonical_token(token):
+        raise AuthenticationError()
     try:
         return fernet.decrypt(token)
     except (InvalidToken, TypeError, ValueError) as exc:
         raise AuthenticationError() from exc
+
+
+def _is_canonical_token(token: str) -> bool:
+    # Python < 3.13 ignores data after Base64 padding when decoding, so a token
+    # with trailing junk would still decrypt. Requiring the canonical encoding
+    # makes the outcome identical on every supported Python version.
+    if not isinstance(token, str):
+        return False
+    try:
+        data = base64.urlsafe_b64decode(token.encode("ascii"))
+    except (binascii.Error, ValueError):
+        return False
+    return base64.urlsafe_b64encode(data).decode("ascii") == token
 
 
 def _check_salt(salt: bytes) -> None:

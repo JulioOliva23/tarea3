@@ -360,11 +360,15 @@ class ListActiveMissionsTest(OperationsTestCase):
             self.create(name=name, threat="1")
         self.assertEqual(self.names(operations.list_active_missions(self.data_dir, "007")), ["ZULU", "ALPHA", "MIKE"])
 
-    def test_clock_going_backwards_does_not_change_order(self) -> None:
+    def test_clock_skew_and_timezone_changes_do_not_change_order(self) -> None:
         self.create(name="FIRST", threat="1")
-        self.create(name="SECOND", threat="1", now=self.now - timedelta(days=30))
-        self.create(name="THIRD", threat="1", now=self.now.astimezone(timezone(timedelta(hours=-5))))
-        self.assertEqual(self.names(operations.list_active_missions(self.data_dir, "007")), ["FIRST", "SECOND", "THIRD"])
+        self.create(name="AHEAD", threat="1", now=self.now + timedelta(days=365))
+        self.create(name="BEHIND", threat="1", now=self.now - timedelta(days=30))
+        self.create(name="OTHER-TZ", threat="1", now=self.now.astimezone(timezone(timedelta(hours=-5))))
+        self.assertEqual(
+            self.names(operations.list_active_missions(self.data_dir, "007")),
+            ["FIRST", "AHEAD", "BEHIND", "OTHER-TZ"],
+        )
 
     def test_needs_no_password_and_decrypts_nothing(self) -> None:
         self.create()

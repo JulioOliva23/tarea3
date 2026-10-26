@@ -248,7 +248,7 @@ class RejectionTest(CliTestCase):
         self.assertFalse(self.data_dir.exists())
 
     def test_invalid_code_name(self) -> None:
-        for name in ("../x", "/", "A B", "ÁGUILA", "SКYFALL", "SKY​FALL", "\x1b[2J", "A" * 31):
+        for name in ("../x", "/", "A B", "ÁGUILA", "S\u041aYFALL", "SKY\u200bFALL", "\x1b[2J", "A" * 31):
             with self.subTest(name=name):
                 self.assert_rejected(self.create(name=name), messages.ERR_CODE_NAME)
         self.assertFalse(self.data_dir.exists())
@@ -258,7 +258,7 @@ class RejectionTest(CliTestCase):
             ("", messages.ERR_REPORT_EMPTY),
             (" 　 \n", messages.ERR_REPORT_EMPTY),
             ("x\x1b[2J", messages.ERR_REPORT_CHARS),
-            ("x‮y", messages.ERR_REPORT_CHARS),
+            ("x\u202ey", messages.ERR_REPORT_CHARS),
             ("a" * 501, messages.ERR_REPORT_LENGTH.format(length=501)),
         ]
         for report, message in cases:
@@ -465,12 +465,12 @@ class FailureTest(CliTestCase):
         self.assertNotIn("secret detail", result.err)
 
     def test_paths_in_errors_are_sanitized(self) -> None:
-        error = DataAccessError("/tmp/\x1b[31mevil‮", "EACCES")
+        error = DataAccessError("/tmp/\x1b[31mevil\u202e", "EACCES")
         with mock.patch.object(operations, "list_active_missions", side_effect=error):
             result = self.run_cli("list", "-a", "007")
         self.assertEqual(result.code, 3)
         self.assertNotIn("\x1b", result.err)
-        self.assertNotIn("‮", result.err)
+        self.assertNotIn("\u202e", result.err)
         self.assertIn("/tmp/?[31mevil?", result.err)
 
 
@@ -621,8 +621,8 @@ class RenderTest(MI6TestCase):
         cases = {
             "\x1b[2J": "?[2J",
             "\x1b]0;pwned\x07": "?]0;pwned?",
-            "abc‮def": "abc?def",
-            "a​b": "a?b",
+            "abc\u202edef": "abc?def",
+            "a\u200bb": "a?b",
             "line\nbreak\r": "line?break?",
             "tab\t": "tab?",
             "\x00\x7f\x9b": "???",
@@ -870,6 +870,13 @@ class LayerBoundaryTest(MI6TestCase):
         pattern = r"(?m)^\s*(import (argparse|sys)\b|from (argparse|sys)\b|from mi6\.cli|import mi6\.cli)|\b(print|input)\("
         for path in sorted((PROJECT_ROOT / "mi6" / "core").glob("*.py")):
             with self.subTest(module=path.name):
+                self.assertNotRegex(path.read_text(encoding="utf-8"), pattern)
+
+    def test_no_network_access(self) -> None:
+        # RNF-3: no module of mi6 may reach the network.
+        pattern = r"(?m)^\s*(import|from)\s+(socket|ssl|http|urllib|ftplib|smtplib|requests|httpx|asyncio)\b"
+        for path in sorted((PROJECT_ROOT / "mi6").rglob("*.py")):
+            with self.subTest(module=str(path.relative_to(PROJECT_ROOT))):
                 self.assertNotRegex(path.read_text(encoding="utf-8"), pattern)
 
     def test_spanish_text_only_in_messages(self) -> None:
