@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import os
 import tempfile
 import unittest
@@ -9,7 +10,15 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
+from mi6.core import storage
+
 FIXED_NOW = datetime(2026, 10, 26, 14, 32, 7, tzinfo=timezone(timedelta(hours=1)))
+FAST_ITERATIONS = 1_000
+
+IS_ROOT = os.geteuid() == 0
+skip_if_root = unittest.skipIf(IS_ROOT, "root ignores POSIX permissions")
+
+_REAL_RESOLVE_DATA_DIR = storage.resolve_data_dir
 
 
 class MI6TestCase(unittest.TestCase):
@@ -18,7 +27,9 @@ class MI6TestCase(unittest.TestCase):
     Each test gets a fresh temporary directory, a sandboxed home directory
     (``HOME`` and ``Path.home()`` both point inside it) and a fixed, timezone
     aware ``now``. ``data_dir`` is the sandboxed ``.mi6`` path and never exists
-    when the test starts, so the real ``~/.mi6`` can never be reached.
+    when the test starts. ``storage.resolve_data_dir`` fails with
+    AssertionError, so no test can reach the real ``~/.mi6``; tests of that
+    function use ``unguarded_resolve_data_dir``, which only sees the sandbox.
     """
 
     def setUp(self) -> None:
@@ -30,15 +41,44 @@ class MI6TestCase(unittest.TestCase):
         self.home = self.tmp_path / "home"
         self.home.mkdir(mode=0o700)
         self.data_dir = self.home / ".mi6"
+        self.missions_file = self.data_dir / storage.MISSIONS_FILE
+        self.lock_file = self.data_dir / storage.LOCK_FILE
         self.now = FIXED_NOW
+        self.unguarded_resolve_data_dir = _REAL_RESOLVE_DATA_DIR
 
-        env_patcher = mock.patch.dict(os.environ, {"HOME": str(self.home)})
-        env_patcher.start()
-        self.addCleanup(env_patcher.stop)
+        patchers = [
+            mock.patch.dict(os.environ, {"HOME": str(self.home)}),
+            mock.patch.object(Path, "home", return_value=self.home),
+            mock.patch.object(
+                storage,
+                "resolve_data_dir",
+                side_effect=AssertionError("tests must never resolve the real ~/.mi6"),
+            ),
+        ]
+        for patcher in patchers:
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
-        home_patcher = mock.patch.object(Path, "home", return_value=self.home)
-        home_patcher.start()
-        self.addCleanup(home_patcher.stop)
+    def set_umask(self, mask: int) -> None:
+        previous = os.umask(mask)
+        self.addCleanup(os.umask, previous)
+
+    def hold_lock(self, operation: int) -> int:
+        """Take a flock on missions.lock through an independent descriptor."""
+        fd = os.open(self.lock_file, os.O_RDWR)
+        self.addCleanup(os.close, fd)
+        fcntl.flock(fd, operation | fcntl.LOCK_NB)
+        return fd
+
+    def mode_of(self, path: Path) -> int:
+        return os.lstat(path).st_mode & 0o7777
+
+    def snapshot_dir(self, path: Path | None = None) -> dict[str, bytes]:
+        """Return name -> content of every file in ``path`` (default: data_dir)."""
+        root = self.data_dir if path is None else path
+        if not root.exists():
+            return {}
+        return {child.name: child.read_bytes() for child in sorted(root.iterdir()) if child.is_file()}
 
 
 class MI6TestCaseIsolationTest(MI6TestCase):
@@ -55,9 +95,17 @@ class MI6TestCaseIsolationTest(MI6TestCase):
         self.assertEqual(Path("~").expanduser(), self.home)
         self.assertEqual(Path.home() / ".mi6", self.data_dir)
 
+    def test_resolve_data_dir_is_guarded(self) -> None:
+        with self.assertRaises(AssertionError):
+            storage.resolve_data_dir()
+
+    def test_unguarded_resolver_only_sees_the_sandbox(self) -> None:
+        if IS_ROOT:
+            self.skipTest("resolve_data_dir refuses to run as root")
+        self.assertEqual(self.unguarded_resolve_data_dir(), self.data_dir)
+
     def test_now_is_fixed_and_timezone_aware(self) -> None:
         self.assertEqual(self.now, FIXED_NOW)
-        self.assertIsNotNone(self.now.tzinfo)
         self.assertIsNotNone(self.now.utcoffset())
 
 
@@ -72,7 +120,7 @@ class MI6TestCaseLifecycleTest(unittest.TestCase):
                 seen["tmp_path"] = self.tmp_path
                 seen["home_during"] = Path.home()
                 self.data_dir.mkdir(mode=0o700)
-                (self.data_dir / "missions.json").write_text("{}", encoding="utf-8")
+                self.missions_file.write_text("{}", encoding="utf-8")
 
         result = unittest.TestResult()
         Probe().run(result)
@@ -83,7 +131,7 @@ class MI6TestCaseLifecycleTest(unittest.TestCase):
         self.assertTrue(result.wasSuccessful(), result.errors + result.failures)
         self.assertFalse(Path(seen["tmp_path"]).exists())
 
-    def test_home_is_restored_after_test(self) -> None:
+    def test_home_and_guard_are_restored_after_test(self) -> None:
         real_home = Path.home()
         real_env_home = os.environ.get("HOME")
         result, seen = self._run_probe()
@@ -91,6 +139,7 @@ class MI6TestCaseLifecycleTest(unittest.TestCase):
         self.assertNotEqual(seen["home_during"], real_home)
         self.assertEqual(Path.home(), real_home)
         self.assertEqual(os.environ.get("HOME"), real_env_home)
+        self.assertIs(storage.resolve_data_dir, _REAL_RESOLVE_DATA_DIR)
 
     def test_each_test_gets_its_own_directory(self) -> None:
         _, first = self._run_probe()

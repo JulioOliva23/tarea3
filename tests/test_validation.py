@@ -15,8 +15,8 @@ from mi6.core.validation import (
     validate_threat_level,
 )
 
-ZWJ = "‍"
-FAMILY_EMOJI = "\U0001F468‍\U0001F469‍\U0001F467"
+ZWJ = "\u200d"
+FAMILY_EMOJI = "\U0001F468\u200d\U0001F469\u200d\U0001F467"
 
 
 class ConstantsTest(unittest.TestCase):
@@ -122,7 +122,7 @@ class ValidateCodeNameTest(unittest.TestCase):
     def test_rejects_forbidden_characters(self) -> None:
         cases = [
             "../x", "/", "SKY/FALL", "A B", " SKYFALL", "SKYFALL ", "ÁGUILA",
-            "SКYFALL", "SKY​FALL", "SKY‍FALL", "\x1b[2J", "SKYFALL\n",
+            "SКYFALL", "SKY\u200bFALL", "SKY\u200dFALL", "\x1b[2J", "SKYFALL\n",
             "sky_fall", "sky.fall", "K", "ı", "straße", "ＳKYFALL", "   ",
         ]
         for raw in cases:
@@ -211,10 +211,10 @@ class NormalizeReportTest(unittest.TestCase):
             "delete": "a\x7fb",
             "lone carriage return": "a\rb",
             "c1 control": "a\x85b",
-            "right-to-left override": "a‮b",
-            "zero width space": "a​b",
-            "byte order mark": "﻿informe",
-            "zero width non-joiner": "a‌b",
+            "right-to-left override": "a\u202eb",
+            "zero width space": "a\u200bb",
+            "byte order mark": "\ufeffinforme",
+            "zero width non-joiner": "a\u200cb",
             "lone surrogate": "a\ud800b",
             "private use": "ab",
             "unassigned": "a͸b",

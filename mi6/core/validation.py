@@ -20,7 +20,7 @@ _AGENT_CODE_RE = re.compile(r"00[1-9]")
 _THREAT_LEVEL_RE = re.compile(r"[1-5]")
 _CODE_NAME_RE = re.compile(r"[A-Za-z0-9-]+")
 
-_ZERO_WIDTH_JOINER = "‍"
+_ZERO_WIDTH_JOINER = "\u200d"
 _ALLOWED_CONTROL_CHARS = frozenset("\n\t")
 _FORBIDDEN_CATEGORIES = frozenset({"Cs", "Co", "Cn"})
 
